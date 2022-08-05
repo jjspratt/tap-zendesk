@@ -42,8 +42,8 @@ def sync_stream(state, start_date, instance):
             #  We may find out that there exists a sync that takes too long and can never emit a bookmark
             #  but we don't know if we can guarentee the order of emitted records.
 
-        if instance.replication_method == "INCREMENTAL":
-            singer.write_state(state)
+        # if instance.replication_method == "INCREMENTAL":
+        #     singer.write_state(state)
 
         return counter.value
 
