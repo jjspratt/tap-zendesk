@@ -142,7 +142,7 @@ def do_sync(client, catalog, state, config):
         LOGGER.info("%s: Starting sync", stream_name)
         instance = STREAMS[stream_name](client, config)
         counter_value = sync_stream(state, config.get('start_date'), instance)
-        singer.write_state(state)
+        # singer.write_state(state)
         LOGGER.info("%s: Completed sync (%s rows)", stream_name, counter_value)
         zendesk_metrics.log_aggregate_rates()
 

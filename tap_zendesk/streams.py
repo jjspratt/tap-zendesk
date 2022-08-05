@@ -4,6 +4,7 @@ import datetime
 import time
 import pytz
 import zenpy
+import copy
 import singer
 from singer import metadata
 from singer import utils
@@ -283,7 +284,7 @@ class Users(Stream):
             self.update_bookmark(state, parsed_end)
 
             # Assumes that the for loop got everything
-            singer.write_state(state)
+            # singer.write_state(state)
             if search_window_size <= original_search_window_size // 2:
                 search_window_size = search_window_size * 2
                 LOGGER.info("Successfully requested records. Doubling search window to %s seconds", search_window_size)
@@ -362,7 +363,7 @@ class Tickets(CursorBasedExportStream):
                 try:
                     # add ticket_id to ticket_comment so the comment can
                     # be linked back to it's corresponding ticket
-                    for comment in comments_stream.sync(ticket["id"]):
+                    for comment in comments_stream.sync(ticket["id"], state):
                         yield comment
                 except http.ZendeskNotFoundError:
                     # Skip stream if ticket_comment does not found for particular ticekt_id. Earlier it throwing HTTPError
@@ -370,11 +371,11 @@ class Tickets(CursorBasedExportStream):
                     message = "Unable to retrieve comments for ticket (ID: {}), record not found".format(ticket['id'])
                     LOGGER.warning(message)
 
-            singer.write_state(state)
+            # singer.write_state(state)
         emit_sub_stream_metrics(audits_stream)
         emit_sub_stream_metrics(metrics_stream)
         emit_sub_stream_metrics(comments_stream)
-        singer.write_state(state)
+        # singer.write_state(state)
 
     def check_access(self):
         '''
@@ -453,8 +454,11 @@ class TicketMetrics(CursorBasedStream):
 
 class TicketComments(Stream):
     name = "ticket_comments"
+    replication_key = "created_at"
     replication_method = "INCREMENTAL"
     count = 0
+    starting_state = None
+    starting_bookmark = None
     endpoint = "https://{}.zendesk.com/api/v2/tickets/{}/comments.json"
     item_key='comments'
 
@@ -466,12 +470,31 @@ class TicketComments(Stream):
         for page in pages:
             yield from page[self.item_key]
 
-    def sync(self, ticket_id):
+    def sync(self, ticket_id, state):
         for ticket_comment in self.get_objects(ticket_id):
             self.count += 1
             zendesk_metrics.capture('ticket_comment')
             ticket_comment['ticket_id'] = ticket_id
-            yield (self.stream, ticket_comment)
+            if not self.starting_state:
+                state = singer.bookmarks.ensure_bookmark_path(state, ['bookmarks', self.name, self.replication_key])
+                self.starting_state = copy.deepcopy(state)
+                self.starting_bookmark = singer.get_bookmark(self.starting_state, self.name, self.replication_key)
+            # created_at
+            created_at = ticket_comment.get('created_at')
+            current_bookmark = singer.get_bookmark(state, self.name, self.replication_key)
+            if not current_bookmark.get(ticket_id):
+                state['bookmarks'][self.name][self.replication_key][ticket_id] = created_at
+            else:
+                current_bookmark = utils.strptime_with_tz(current_bookmark.get(ticket_id))
+                if created_at and utils.strptime_with_tz(created_at) > current_bookmark:
+                    state['bookmarks'][self.name][self.replication_key][ticket_id] = created_at
+            
+            if self.starting_bookmark.get(str(ticket_id)):
+                ticket_bookmark = utils.strptime_with_tz(self.starting_bookmark.get(str(ticket_id)))
+                if utils.strptime_with_tz(created_at) > ticket_bookmark:
+                    yield (self.stream, ticket_comment)
+            else:
+                yield (self.stream, ticket_comment)
 
     def check_access(self):
         '''
