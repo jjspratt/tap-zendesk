@@ -343,9 +343,9 @@ class Tickets(CursorBasedExportStream):
                 try:
                     for audit in audits_stream.sync(ticket["id"]):
                         yield audit
-                except http.ZendeskNotFoundError:
+                except http.ZendeskNotFound:
                     # Skip stream if ticket_audit does not found for particular ticekt_id. Earlier it throwing HTTPError
-                    # but now as error handling updated, it throws ZendeskNotFoundError.
+                    # but now as error handling updated, it throws ZendeskNotFound.
                     message = "Unable to retrieve audits for ticket (ID: {}), record not found".format(ticket['id'])
                     LOGGER.warning(message)
 
@@ -353,9 +353,9 @@ class Tickets(CursorBasedExportStream):
                 try:
                     for metric in metrics_stream.sync(ticket["id"]):
                         yield metric
-                except http.ZendeskNotFoundError:
+                except http.ZendeskNotFound:
                     # Skip stream if ticket_metric does not found for particular ticekt_id. Earlier it throwing HTTPError
-                    # but now as error handling updated, it throws ZendeskNotFoundError.
+                    # but now as error handling updated, it throws ZendeskNotFound.
                     message = "Unable to retrieve metrics for ticket (ID: {}), record not found".format(ticket['id'])
                     LOGGER.warning(message)
 
@@ -365,9 +365,9 @@ class Tickets(CursorBasedExportStream):
                     # be linked back to it's corresponding ticket
                     for comment in comments_stream.sync(ticket["id"], state):
                         yield comment
-                except http.ZendeskNotFoundError:
+                except http.ZendeskNotFound:
                     # Skip stream if ticket_comment does not found for particular ticekt_id. Earlier it throwing HTTPError
-                    # but now as error handling updated, it throws ZendeskNotFoundError.
+                    # but now as error handling updated, it throws ZendeskNotFound.
                     message = "Unable to retrieve comments for ticket (ID: {}), record not found".format(ticket['id'])
                     LOGGER.warning(message)
 
@@ -419,8 +419,8 @@ class TicketAudits(Stream):
         HEADERS['Authorization'] = 'Bearer {}'.format(self.config["access_token"])
         try:
             http.call_api(url, self.request_timeout, params={'per_page': 1}, headers=HEADERS)
-        except http.ZendeskNotFoundError:
-            #Skip 404 ZendeskNotFoundError error as goal is just to check whether TicketComments have read permission or not
+        except http.ZendeskNotFound:
+            #Skip 404 ZendeskNotFound error as goal is just to check whether TicketComments have read permission or not
             pass
 
 class TicketMetrics(CursorBasedStream):
@@ -448,8 +448,8 @@ class TicketMetrics(CursorBasedStream):
         HEADERS['Authorization'] = 'Bearer {}'.format(self.config["access_token"])
         try:
             http.call_api(url, self.request_timeout, params={'per_page': 1}, headers=HEADERS)
-        except http.ZendeskNotFoundError:
-            #Skip 404 ZendeskNotFoundError error as goal is just to check whether TicketComments have read permission or not
+        except http.ZendeskNotFound:
+            #Skip 404 ZendeskNotFound error as goal is just to check whether TicketComments have read permission or not
             pass
 
 class TicketComments(Stream):
@@ -472,8 +472,6 @@ class TicketComments(Stream):
 
     def sync(self, ticket_id, state):
         for ticket_comment in self.get_objects(ticket_id):
-            self.count += 1
-            zendesk_metrics.capture('ticket_comment')
             ticket_comment['ticket_id'] = ticket_id
             if not self.starting_state:
                 state = singer.bookmarks.ensure_bookmark_path(state, ['bookmarks', self.name, self.replication_key])
@@ -491,10 +489,12 @@ class TicketComments(Stream):
             
             if self.starting_bookmark.get(str(ticket_id)):
                 ticket_bookmark = utils.strptime_with_tz(self.starting_bookmark.get(str(ticket_id)))
-                if utils.strptime_with_tz(created_at) > ticket_bookmark:
-                    yield (self.stream, ticket_comment)
             else:
+                ticket_bookmark = utils.strptime_with_tz(self.config.get("start_date"))
+            if utils.strptime_with_tz(created_at) > ticket_bookmark:
                 yield (self.stream, ticket_comment)
+                zendesk_metrics.capture('ticket_comment')
+                self.count += 1
 
     def check_access(self):
         '''
@@ -504,8 +504,8 @@ class TicketComments(Stream):
         HEADERS['Authorization'] = 'Bearer {}'.format(self.config["access_token"])
         try:
             http.call_api(url, self.request_timeout, params={'per_page': 1}, headers=HEADERS)
-        except http.ZendeskNotFoundError:
-            #Skip 404 ZendeskNotFoundError error as goal is to just check to whether TicketComments have read permission or not
+        except http.ZendeskNotFound:
+            #Skip 404 ZendeskNotFound error as goal is to just check to whether TicketComments have read permission or not
             pass
 
 class SatisfactionRatings(CursorBasedStream):

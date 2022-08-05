@@ -3,7 +3,7 @@ import json
 import singer
 import zenpy
 from tap_zendesk.streams import STREAMS
-from tap_zendesk.http import ZendeskForbiddenError
+from tap_zendesk.http import ZendeskForbidden
 
 LOGGER = singer.get_logger()
 
@@ -39,7 +39,7 @@ def discover_streams(client, config):
             # If stream does not have read permission then append that stream name to list and at the end of all streams
             # raise forbidden error with proper message containing stream names.
             stream.check_access()
-        except ZendeskForbiddenError as e:
+        except ZendeskForbidden as e:
             error_list.append(stream.name) # Append stream name to the error_list
         except zenpy.lib.exception.APIException as e:
             args0 = json.loads(e.args[0])
@@ -71,7 +71,7 @@ def discover_streams(client, config):
             message ="HTTP-error-code: 403, Error: The account credentials supplied do not have 'read' access to any "\
             "of streams supported by the tap. Data collection cannot be initiated due to lack of permissions."
             # If none of the streams are having the 'read' access, then the code will raise an error
-            raise ZendeskForbiddenError(message)
+            raise ZendeskForbidden(message)
 
 
     return streams
