@@ -15,19 +15,19 @@ class ZendeskError(Exception):
         self.message = message
         self.response = response
 
-class ZendeskBackoffError(ZendeskError):
+class ZendeskBackoff(ZendeskError):
     pass
 
-class ZendeskBadRequestError(ZendeskError):
+class ZendeskBadRequest(ZendeskError):
     pass
 
-class ZendeskUnauthorizedError(ZendeskError):
+class ZendeskUnauthorized(ZendeskError):
     pass
 
-class ZendeskForbiddenError(ZendeskError):
+class ZendeskForbidden(ZendeskError):
     pass
 
-class ZendeskNotFoundError(ZendeskError):
+class ZendeskNotFound(ZendeskError):
     pass
 
 class ZendeskConflictError(ZendeskError):
@@ -36,36 +36,36 @@ class ZendeskConflictError(ZendeskError):
 class ZendeskUnprocessableEntityError(ZendeskError):
     pass
 
-class ZendeskRateLimitError(ZendeskBackoffError):
+class ZendeskRateLimitError(ZendeskBackoff):
     pass
 
-class ZendeskInternalServerError(ZendeskBackoffError):
+class ZendeskInternalServerError(ZendeskBackoff):
     pass
 
-class ZendeskNotImplementedError(ZendeskBackoffError):
+class ZendeskNotImplementedError(ZendeskBackoff):
     pass
 
-class ZendeskBadGatewayError(ZendeskBackoffError):
+class ZendeskBadGatewayError(ZendeskBackoff):
     pass
 
-class ZendeskServiceUnavailableError(ZendeskBackoffError):
+class ZendeskServiceUnavailableError(ZendeskBackoff):
     pass
 
 ERROR_CODE_EXCEPTION_MAPPING = {
     400: {
-        "raise_exception": ZendeskBadRequestError,
+        "raise_exception": ZendeskBadRequest,
         "message": "A validation exception has occurred."
     },
     401: {
-        "raise_exception": ZendeskUnauthorizedError,
+        "raise_exception": ZendeskUnauthorized,
         "message": "The access token provided is expired, revoked, malformed or invalid for other reasons."
     },
     403: {
-        "raise_exception": ZendeskForbiddenError,
+        "raise_exception": ZendeskForbidden,
         "message": "You are missing the following required scopes: read"
     },
     404: {
-        "raise_exception": ZendeskNotFoundError,
+        "raise_exception": ZendeskNotFound,
         "message": "The resource you have specified cannot be found."
     },
     409: {
@@ -128,11 +128,11 @@ def raise_for_error(response):
         response_json = response.json()
     except Exception: # pylint: disable=broad-except
         response_json = {}
-    if response.status_code != 200:
+    if response.status_code not in [200, 404]:
         if response_json.get('error'):
-            message = "HTTP-error-code: {}, Error: {}".format(response.status_code, response_json.get('error'))
+            message = "HTTP-code: {}, Message: {}".format(response.status_code, response_json.get('error'))
         else:
-            message = "HTTP-error-code: {}, Error: {}".format(
+            message = "HTTP-code: {}, Message: {}".format(
                 response.status_code,
                 response_json.get("message", ERROR_CODE_EXCEPTION_MAPPING.get(
                     response.status_code, {}).get("message", "Unknown Error")))
