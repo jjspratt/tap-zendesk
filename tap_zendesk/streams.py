@@ -468,7 +468,9 @@ class TicketComments(Stream):
         pages = http.get_offset_based(url, self.config['access_token'], self.request_timeout)
 
         for page in pages:
-            yield from page[self.item_key]
+            items = page.get(self.item_key)
+            if items:
+                yield from items
 
     def sync(self, ticket_id, state):
         for ticket_comment in self.get_objects(ticket_id):
