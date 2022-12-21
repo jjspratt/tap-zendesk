@@ -11,6 +11,7 @@ from singer import utils
 from singer.metrics import Point
 from tap_zendesk import metrics as zendesk_metrics
 from tap_zendesk import http
+from dateutil.parser import isoparse
 
 
 LOGGER = singer.get_logger()
@@ -235,9 +236,9 @@ class Users(Stream):
         original_search_window_size = int(self.config.get('search_window_size', DEFAULT_SEARCH_WINDOW_SIZE))
         search_window_size = original_search_window_size
         bookmark = self.get_bookmark(state)
-        start = bookmark - datetime.timedelta(seconds=1)
+        start = bookmark
         end = start + datetime.timedelta(seconds=search_window_size)
-        sync_end = singer.utils.now() - datetime.timedelta(minutes=1)
+        sync_end = singer.utils.now() + datetime.timedelta(minutes=1)
         parsed_sync_end = singer.strftime(sync_end, "%Y-%m-%dT%H:%M:%SZ")
 
         # ASSUMPTION: updated_at value always comes back in utc
@@ -278,10 +279,13 @@ class Users(Stream):
 
             # If we make it here, all quality checks have passed. Reset retry count.
             num_retries = 0
+            max_updated_at = bookmark
             for user in users:
+                updated_at = isoparse(user.updated_at)
+                max_updated_at = updated_at if updated_at>max_updated_at else max_updated_at
                 if parsed_start <= user.updated_at <= parsed_end:
                     yield (self.stream, user)
-            self.update_bookmark(state, parsed_end)
+            self.update_bookmark(state, max_updated_at.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
             # Assumes that the for loop got everything
             # singer.write_state(state)
