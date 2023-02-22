@@ -405,8 +405,7 @@ class TicketAudits(Stream):
         # Pass `request_timeout` parameter
         pages = http.get_offset_based(url, self.config['access_token'], self.request_timeout)
         for page in pages:
-            if self.item_key in page:
-                yield from page[self.item_key]
+            yield from page.get(self.item_key, [])
 
     def sync(self, ticket_id):
         ticket_audits = self.get_objects(ticket_id)
