@@ -482,8 +482,13 @@ class TicketComments(Stream):
             ticket_comment['ticket_id'] = ticket_id
             if not self.starting_state:
                 state = singer.bookmarks.ensure_bookmark_path(state, ['bookmarks', self.name, self.replication_key])
+                # If bookmark is not available for ticket_comments, then check for bookmark for tickets
+                if not state['bookmarks']['ticket_comments'].get(self.replication_key):
+                    state['bookmarks']['ticket_comments'][self.replication_key] = { str(ticket_id): state['bookmarks']['tickets']['generated_timestamp']}
                 self.starting_state = copy.deepcopy(state)
                 self.starting_bookmark = singer.get_bookmark(self.starting_state, self.name, self.replication_key)
+
+
             # created_at
             created_at = ticket_comment.get('created_at')
             current_bookmark = singer.get_bookmark(state, self.name, self.replication_key)
