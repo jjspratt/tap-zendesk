@@ -483,7 +483,8 @@ class TicketComments(Stream):
             if not self.starting_state:
                 state = singer.bookmarks.ensure_bookmark_path(state, ['bookmarks', self.name, self.replication_key])
                 # If bookmark is not available for ticket_comments, then check for bookmark for tickets
-                if not state['bookmarks']['ticket_comments'].get(self.replication_key):
+                tc_bookmark = state['bookmarks']['ticket_comments'].get(self.replication_key)
+                if not tc_bookmark and len(tc_bookmark) == 0:
                     state['bookmarks']['ticket_comments'][self.replication_key] = { str(ticket_id): state['bookmarks']['tickets']['generated_timestamp']}
                 self.starting_state = copy.deepcopy(state)
                 self.starting_bookmark = singer.get_bookmark(self.starting_state, self.name, self.replication_key)
@@ -501,7 +502,9 @@ class TicketComments(Stream):
             
             if self.starting_bookmark.get(str(ticket_id)):
                 ticket_bookmark = utils.strptime_with_tz(self.starting_bookmark.get(str(ticket_id)))
-            else:
+            elif self.starting_state['bookmarks'].get("tickets").get(Tickets.replication_key):
+                ticket_bookmark = utils.strptime_with_tz(self.starting_state["bookmarks"].get("tickets").get(Tickets.replication_key))
+            else: 
                 ticket_bookmark = utils.strptime_with_tz(self.config.get("start_date"))
             if utils.strptime_with_tz(created_at) > ticket_bookmark:
                 yield (self.stream, ticket_comment)
