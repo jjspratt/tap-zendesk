@@ -224,7 +224,6 @@ def get_incremental_export(url, access_token, request_timeout, start_time):
     }
 
     params = {'start_time': start_time}
-    
     if not isinstance(start_time, int):
         params = {'start_time': start_time.timestamp()}
 
