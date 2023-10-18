@@ -152,6 +152,8 @@ class CursorBasedExportStream(Stream):
         url = self.endpoint.format(self.config['subdomain'])
         # Pass `request_timeout` parameter
         for page in http.get_incremental_export(url, self.config['access_token'], self.request_timeout, start_time):
+            if "error" in page and self.item_key not in page:
+                raise Exception("Error: "+page.get("error",{}).get("message","Error found in the account."))
             yield from page[self.item_key]
 
 
