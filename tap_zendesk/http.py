@@ -5,7 +5,6 @@ import singer
 from requests.exceptions import Timeout, HTTPError
 
 
-
 LOGGER = singer.get_logger()
 
 
@@ -139,7 +138,11 @@ def raise_for_error(response):
         exc = ERROR_CODE_EXCEPTION_MAPPING.get(
             response.status_code, {}).get("raise_exception", ZendeskError)
         raise exc(message, response) from None
-
+def get_config():
+    #Have to do lazy import to avoid circular import
+    from tap_zendesk import REQUIRED_CONFIG_KEYS
+    parsed_args = singer.utils.parse_args(REQUIRED_CONFIG_KEYS)
+    return parsed_args.config
 @backoff.on_exception(backoff.expo,
                       (ZendeskConflictError),
                       max_tries=10,
@@ -153,6 +156,12 @@ def raise_for_error(response):
                     max_tries=5, # here we added another backoff expression.
                     factor=2)
 def call_api(url, request_timeout, params, headers):
+    config = get_config()
+    if config.get("marketplace_name") and config.get("marketplace_organization") and config.get("marketplace_app_id"):
+        headers["X-Zendesk-Marketplace-Name"] = config.get("marketplace_name")
+        headers["X-Zendesk-Marketplace-Organization-Id"] = config.get("marketplace_organization")
+        headers["X-Zendesk-Marketplace-App-Id"] = config.get("marketplace_app_id")
+        
     response = requests.get(url, params=params, headers=headers, timeout=request_timeout) # Pass request timeout
     raise_for_error(response)
     return response
